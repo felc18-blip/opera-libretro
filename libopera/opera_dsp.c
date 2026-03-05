@@ -46,7 +46,7 @@
 #endif
 
 #define TOPBIT       0x80000000
-#define SYSTEM_TICKS 568        /* ceil(((25000000 / 44100) + 1)) */
+#define SYSTEM_TICKS 320        /* ceil(((25000000 / 44100) + 1)) */
 
 #pragma pack(push,1)
 
@@ -321,7 +321,7 @@ dsp_read(uint32_t addr_)
   switch(addr_)
     {
     case 0xEA:
-      return prng16();
+      return 0;
     case 0xEB:
       return DSP.dregs.AudioOutStatus;
     case 0xEC:
@@ -1048,30 +1048,30 @@ opera_dsp_loop(void)
                   //*
                 case 1:
                   Y = (0 - BOP);
-                  flags.carry    = SUB_CFLAG(0,BOP,Y);
-                  flags.overflow = SUB_VFLAG(0,BOP,Y);
+                  flags.carry = 0;
+                  flags.overflow = 0;
                   break;
                 case 2:
                 case 3:
                   Y = (AOP + BOP);
-                  flags.carry    = ADD_CFLAG(AOP,BOP,Y);
-                  flags.overflow = ADD_VFLAG(AOP,BOP,Y);
+                  flags.carry = 0;
+                  flags.overflow = 0;
                   break;
                 case 4:
                 case 5:
                   Y = (AOP - BOP);
-                  flags.carry    = SUB_CFLAG(AOP,BOP,Y);
-                  flags.overflow = SUB_VFLAG(AOP,BOP,Y);
+                  flags.carry = 0;
+                  flags.overflow = 0;
                   break;
                 case 6:
                   Y = (AOP + 0x1000);
-                  flags.carry    = ADD_CFLAG(AOP,0x1000,Y);
-                  flags.overflow = ADD_VFLAG(AOP,0x1000,Y);
+                  flags.carry = 0;
+                  flags.overflow = 0;
                   break;
                 case 7:
                   Y = (AOP - 0x1000);
-                  flags.carry    = SUB_CFLAG(AOP,0x1000,Y);
-                  flags.overflow = SUB_VFLAG(AOP,0x1000,Y);
+                 flags.carry = 0;
+                 flags.overflow = 0;
                   break;
                 case 8:		// A
                   Y = AOP;
@@ -1098,124 +1098,16 @@ opera_dsp_loop(void)
                   Y = (AOP ^ BOP ^ ALUSIZEMASK);
                   break;
                 }
-
+            
               flags.zero     = ((Y & 0xFFFF0000) ? 0 : 1);
               flags.negative = ((Y >> 31) ? 1 : 0);
               fExact         = ((Y & 0x0000F000) ? 0 : 1);
-
-              //and BarrelShifter
-              switch(DSP.flags.BS)
-                {
-                case 1:
-                case 17:
-                  Y = Y << 1;
-                  break;
-                case 2:
-                case 18:
-                  Y = Y << 2;
-                  break;
-                case 3:
-                case 19:
-                  Y = Y << 3;
-                  break;
-                case 4:
-                case 20:
-                  Y = Y << 4;
-                  break;
-                case 5:
-                case 21:
-                  Y = Y << 5;
-                  break;
-                case 6:
-                case 22:
-                  Y = Y << 8;
-                  break;
-
-                  //arithmetic shifts
-                case 9:
-                  Y  = ((int32_t)Y >> 16);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 10:
-                  Y  = ((int32_t)Y >> 8);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 11:
-                  Y  = ((int32_t)Y >> 5);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 12:
-                  Y  = ((int32_t)Y >> 4);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 13:
-                  Y  = ((int32_t)Y >> 3);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 14:
-                  Y  = ((int32_t)Y >> 2);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 15:
-                  Y  = ((int32_t)Y >> 1);
-                  Y &= ALUSIZEMASK;
-                  break;
-
-                  // logocal shift
-                case 7:         // CLIP ari
-                case 23:        // CLIP log
-                  if(1 & flags.overflow)
-                    {
-                      if(1 & flags.negative)
-                        Y = 0x7FFFF000;
-                      else
-                        Y = 0x80000000;
-                    }
-                  break;
-                case 8:         // Load operand load sameself again (ari)
-                case 24:        // same, but logicalshift
-                  {
-                    //int temp=flags.carry;
-                    flags.carry = ((signed)Y < 0); // shift out bit to Carry
-                    //Y=Y<<1;
-                    //Y|=temp<<16;
-                    Y = (((Y << 1) & 0xFFFE0000)   |
-                         (flags.carry ? 1<<16 : 0) |
-                         (Y & 0xF000));
-                  }
-                  break;
-                case 25:
-                  Y  = ((uint32_t)Y >> 16);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 26:
-                  Y  = ((uint32_t)Y >> 8);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 27:
-                  Y  = ((uint32_t)Y >> 5);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 28:
-                  Y  = ((uint32_t)Y >> 4);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 29:
-                  Y  = ((uint32_t)Y >> 3);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 30:
-                  Y  = ((uint32_t)Y >> 2);
-                  Y &= ALUSIZEMASK;
-                  break;
-                case 31:
-                  Y  = ((uint32_t)Y >> 1);
-                  Y &= ALUSIZEMASK;
-                  break;
-                }
-
+              
+              if (DSP.flags.BS)
+              Y <<= 1;
+              }
               if(DSP.flags.WRITEBACK)
-                dsp_write(DSP.flags.WRITEBACK,((int32_t)Y) >> 16);
+                DSP.IMem[DSP.flags.WRITEBACK] = Y >> 16;
             }
 
         } while(work);
@@ -1224,7 +1116,7 @@ opera_dsp_loop(void)
       if(1 & DSP.flags.GenFIQ)
         {
           DSP.flags.GenFIQ = false;
-          opera_clio_fiq_generate(0x800,0); /* AudioFIQ */
+        //  opera_clio_fiq_generate(0x800,0); /* AudioFIQ */
         }
 
       DSP.dregs.DSPPCNT -= SYSTEM_TICKS;
