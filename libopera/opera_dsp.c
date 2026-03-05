@@ -834,297 +834,245 @@ opera_dsp_reset(void)
 uint32_t
 opera_dsp_loop(void)
 {
-  uint32_t Y;	/* accumulator */
+  uint32_t Y;   /* accumulator */
   uint32_t BOP; /* 1st & 2nd operand */
   dsp_alu_flags_t flags;
 
-  if(DSP.flags.Running)
+  if (DSP.flags.Running)
+  {
+    uint32_t AOP  = 0;      /* 1st operand */
+    uint32_t RBSR = 0;      /* return address */
+    int      fExact = 0;
+    bool     work   = true;
+
+    opera_dsp_reset();
+
+    Y = 0;
+    BOP = 0;
+    flags.raw = 0;
+
+    while (work)
     {
-      uint32_t AOP    = 0;      /* 1st operand */
-      uint32_t RBSR   = 0;	/* return address */
-      int      fExact = 0;
-bool work = true;
+      ITAG_t inst;
 
-opera_dsp_reset();
+      inst.raw = DSP.NMem[DSP.dregs.PC++];
 
-Y = 0;
-BOP = 0;
-flags.raw = 0;
-
-while (work)
-{
-          ITAG_t inst;
-
-          inst.raw = DSP.NMem[DSP.dregs.PC++];
-          if(inst.aif.PAD)
-            { // Control instruction
-              switch((inst.raw >> 7) & 0xFF)
-                {
-                case 0:         /* NOP TODO */
-                  break;
-                case 1:         /* branch accum */
-                  DSP.dregs.PC = ((Y >> 16) & 0x3FF);
-                  break;
-                case 2:         /* set rbase */
-                  DSP.RBASEx4 = ((inst.cif.BCH_ADDR & 0x3F) << 2);
-                  break;
-                case 3:         /* set rmap */
-                  DSP.REGi = (inst.cif.BCH_ADDR & 7);
-                  break;
-                case 4:         /* RTS */
-                  DSP.dregs.PC = RBSR;
-                  break;
-                case 5:         /* set op_mask */
-                  DSP.flags.nOP_MASK = ~(inst.cif.BCH_ADDR & 0x1F);
-                  break;
-                case 6:         /* -not used2- ins */
-                  break;
-                case 7:         /* sleep */
-                  work = false;
-                  break;
-                case 8:
-                case 9:
-                case 10:
-                case 11:
-                case 12:
-                case 13:
-                case 14:
-                case 15:
-                  /* jump */
-                  DSP.dregs.PC = inst.cif.BCH_ADDR;
-                  break;
-                case 16:
-                case 17:
-                case 18:
-                case 19:
-                case 20:
-                case 21:
-                case 22:
-                case 23:
-                  /* jsr */
-                  RBSR         = DSP.dregs.PC;
-                  DSP.dregs.PC = inst.cif.BCH_ADDR;
-                  break;
-                case 24:
-                case 25:
-                case 26:
-                case 27:
-                case 28:
-                case 29:
-                case 30:
-                case 31:
-                  /* branch only if was branched */
-                  DSP.dregs.PC = inst.cif.BCH_ADDR;
-                  break;
-                case 32:
-                case 33:
-                case 34:
-                case 35:
-                case 36:
-                case 37:
-                case 38:
-                case 39:
-                case 40:
-                case 41:
-                case 42:
-                case 43:
-                case 44:
-                case 45:
-                case 46:
-                case 47: /* MOVEREG */
-                  {
-                    uint16_t op;
-                    uint16_t addr;
-
-                    op   = dsp_operand_load1();
-                    addr = DSP.REGCONV[DSP.REGi][inst.r2of.R1] ^ DSP.RBASEx4;
-                    if(inst.r2of.R1_DI)
-                      addr = dsp_read(addr);
-                    dsp_write(addr,op);
-                  }
-                  break;
-                case 48:
-                case 49:
-                case 50:
-                case 51:
-                case 52:
-                case 53:
-                case 54:
-                case 55:
-                case 56:
-                case 57:
-                case 58:
-                case 59:
-                case 60:
-                case 61:
-                case 62:
-                case 63: /* move */
-                  {
-                    uint16_t op;
-                    uint16_t addr;
-
-                    op   = dsp_operand_load1();
-                    addr = inst.cif.BCH_ADDR;
-                    if(inst.nrof.DI)
-                      addr = dsp_read(addr);
-                    dsp_write(addr,op);
-                  }
-                  break;
-                default: /* condition branch */
-                  if(1 & DSP.BRCONDTAB[inst.br.bits][fExact+((flags.raw*0x10080402)>>24)])
-                    DSP.dregs.PC = inst.cif.BCH_ADDR;
-                  break;
-                }
-            }
-          else
-            {
-              /* ALU instruction */
-              DSP.flags.req.raw = DSP.INSTTRAS[inst.raw].req.raw;
-              DSP.flags.BS      = DSP.INSTTRAS[inst.raw].BS;
-
-              dsp_operand_load(inst.aif.NUMOPS);
-
-              switch(inst.aif.MUXA)
-                {
-                case 3:
-                  if(inst.aif.M2SEL == 0)
-                    {
-                      if((inst.aif.ALU == 3) || (inst.aif.ALU == 5))  // ACSBU signal
-                        AOP = (flags.carry ? ((int)DSP.flags.MULT1<<16) & ALUSIZEMASK : 0);
-                      else
-                        AOP = (((int)DSP.flags.MULT1 * (((int32_t)Y >> 15) & ~1)) & ALUSIZEMASK);
-                    }
-                  else
-                    {
-                      AOP = (((int)DSP.flags.MULT1 * (int)DSP.flags.MULT2 * 2) & ALUSIZEMASK);
-                    }
-                  break;
-                case 1:
-                  AOP = (DSP.flags.ALU1 << 16);
-                  break;
-                case 0:
-                  AOP = Y;
-                  break;
-                case 2:
-                  AOP = (DSP.flags.ALU2 << 16);
-                  break;
-                }
-
-              /* ACSBU signal */
-              if((inst.aif.ALU == 3) || (inst.aif.ALU == 5))
-                {
-                  BOP = (flags.carry << 16);
-                }
-              else
-                {
-                  switch(inst.aif.MUXB)
-                    {
-                    case 0:
-                      BOP = Y;
-                      break;
-                    case 1:
-                      BOP = (DSP.flags.ALU1 << 16);
-                      break;
-                    case 2:
-                      BOP = (DSP.flags.ALU2 << 16);
-                      break;
-                    case 3:
-                      if(inst.aif.M2SEL == 0) // ACSBU == 0 here always
-                        BOP = (((int)DSP.flags.MULT1 * (((int32_t)Y >> 15)) & ~1) & ALUSIZEMASK);
-                      else
-                        BOP = (((int)DSP.flags.MULT1 * (int)DSP.flags.MULT2 * 2) & ALUSIZEMASK);
-                      break;
-                    }
-                }
-
-              /* Any ALU op. change overflow and possible carry */
-              flags.carry    = 0;
-              flags.overflow = 0;
-              switch(inst.aif.ALU)
-                {
-                case 0:
-                  Y = AOP;
-                  break;
-                  //*
-                case 1:
-                  Y = (0 - BOP);
-                  flags.carry = 0;
-                  flags.overflow = 0;
-                  break;
-                case 2:
-                case 3:
-                  Y = (AOP + BOP);
-                  flags.carry = 0;
-                  flags.overflow = 0;
-                  break;
-                case 4:
-                case 5:
-                  Y = (AOP - BOP);
-                  flags.carry = 0;
-                  flags.overflow = 0;
-                  break;
-                case 6:
-                  Y = (AOP + 0x1000);
-                  flags.carry = 0;
-                  flags.overflow = 0;
-                  break;
-                case 7:
-                  Y = (AOP - 0x1000);
-                 flags.carry = 0;
-                 flags.overflow = 0;
-                  break;
-                case 8:		// A
-                  Y = AOP;
-                  break;
-                case 9:		// NOT A
-                  Y = (AOP ^ ALUSIZEMASK);
-                  break;
-                case 10:	// A AND B
-                  Y = (AOP & BOP);
-                  break;
-                case 11:	// A NAND B
-                  Y = ((AOP & BOP) ^ ALUSIZEMASK);
-                  break;
-                case 12:	// A OR B
-                  Y= (AOP | BOP);
-                  break;
-                case 13:	// A NOR B
-                  Y = ((AOP | BOP) ^ ALUSIZEMASK);
-                  break;
-                case 14:	// A XOR B
-                  Y = (AOP ^ BOP);
-                  break;
-                case 15:	// A XNOR B
-                  Y = (AOP ^ BOP ^ ALUSIZEMASK);
-                  break;
-                }
-            
-              flags.zero     = ((Y & 0xFFFF0000) ? 0 : 1);
-              flags.negative = ((Y >> 31) ? 1 : 0);
-              fExact         = ((Y & 0x0000F000) ? 0 : 1);
-
-              if (DSP.flags.BS)
-                Y <<= 1;
-
-              if (DSP.flags.WRITEBACK)
-              {
-                DSP.IMem[DSP.flags.WRITEBACK] = Y >> 16;
-              }
-
-            }   /* fecha o bloco do else */
-
-        }       /* fecha o do */
-
-      if(1 & DSP.flags.GenFIQ)
+      if (inst.aif.PAD)
+      { /* Control instruction */
+        switch ((inst.raw >> 7) & 0xFF)
         {
-          DSP.flags.GenFIQ = false;
-        //  opera_clio_fiq_generate(0x800,0); /* AudioFIQ */
+          case 0: /* NOP */
+            break;
+
+          case 1: /* branch accum */
+            DSP.dregs.PC = ((Y >> 16) & 0x3FF);
+            break;
+
+          case 2: /* set rbase */
+            DSP.RBASEx4 = ((inst.cif.BCH_ADDR & 0x3F) << 2);
+            break;
+
+          case 3: /* set rmap */
+            DSP.REGi = (inst.cif.BCH_ADDR & 7);
+            break;
+
+          case 4: /* RTS */
+            DSP.dregs.PC = RBSR;
+            break;
+
+          case 5: /* set op_mask */
+            DSP.flags.nOP_MASK = ~(inst.cif.BCH_ADDR & 0x1F);
+            break;
+
+          case 6:
+            break;
+
+          case 7: /* sleep */
+            work = false;
+            break;
+
+          case 8:
+          case 9:
+          case 10:
+          case 11:
+          case 12:
+          case 13:
+          case 14:
+          case 15: /* jump */
+            DSP.dregs.PC = inst.cif.BCH_ADDR;
+            break;
+
+          case 16:
+          case 17:
+          case 18:
+          case 19:
+          case 20:
+          case 21:
+          case 22:
+          case 23: /* jsr */
+            RBSR = DSP.dregs.PC;
+            DSP.dregs.PC = inst.cif.BCH_ADDR;
+            break;
+
+          case 24:
+          case 25:
+          case 26:
+          case 27:
+          case 28:
+          case 29:
+          case 30:
+          case 31:
+            DSP.dregs.PC = inst.cif.BCH_ADDR;
+            break;
+
+          case 32 ... 47: /* MOVEREG */
+          {
+            uint16_t op;
+            uint16_t addr;
+
+            op   = dsp_operand_load1();
+            addr = DSP.REGCONV[DSP.REGi][inst.r2of.R1] ^ DSP.RBASEx4;
+
+            if (inst.r2of.R1_DI)
+              addr = dsp_read(addr);
+
+            dsp_write(addr, op);
+          }
+          break;
+
+          case 48 ... 63: /* move */
+          {
+            uint16_t op;
+            uint16_t addr;
+
+            op   = dsp_operand_load1();
+            addr = inst.cif.BCH_ADDR;
+
+            if (inst.nrof.DI)
+              addr = dsp_read(addr);
+
+            dsp_write(addr, op);
+          }
+          break;
+
+          default: /* condition branch */
+            if (DSP.BRCONDTAB[inst.br.bits][fExact + ((flags.raw * 0x10080402) >> 24)] & 1)
+              DSP.dregs.PC = inst.cif.BCH_ADDR;
+            break;
+        }
+      }
+      else
+      {
+        /* ALU instruction */
+
+        DSP.flags.req.raw = DSP.INSTTRAS[inst.raw].req.raw;
+        DSP.flags.BS      = DSP.INSTTRAS[inst.raw].BS;
+
+        dsp_operand_load(inst.aif.NUMOPS);
+
+        switch (inst.aif.MUXA)
+        {
+          case 3:
+            if (inst.aif.M2SEL == 0)
+            {
+              if ((inst.aif.ALU == 3) || (inst.aif.ALU == 5))
+                AOP = (flags.carry ? ((int)DSP.flags.MULT1 << 16) & ALUSIZEMASK : 0);
+              else
+                AOP = (((int)DSP.flags.MULT1 * (((int32_t)Y >> 15) & ~1)) & ALUSIZEMASK);
+            }
+            else
+            {
+              AOP = (((int)DSP.flags.MULT1 * (int)DSP.flags.MULT2 * 2) & ALUSIZEMASK);
+            }
+            break;
+
+          case 1:
+            AOP = (DSP.flags.ALU1 << 16);
+            break;
+
+          case 0:
+            AOP = Y;
+            break;
+
+          case 2:
+            AOP = (DSP.flags.ALU2 << 16);
+            break;
         }
 
-      DSP.dregs.DSPPCNT -= SYSTEM_TICKS;
-      if(DSP.dregs.DSPPCNT <= 0)
-        DSP.dregs.DSPPCNT += DSP.dregs.DSPPRLD;
+        if ((inst.aif.ALU == 3) || (inst.aif.ALU == 5))
+        {
+          BOP = (flags.carry << 16);
+        }
+        else
+        {
+          switch (inst.aif.MUXB)
+          {
+            case 0:
+              BOP = Y;
+              break;
+
+            case 1:
+              BOP = (DSP.flags.ALU1 << 16);
+              break;
+
+            case 2:
+              BOP = (DSP.flags.ALU2 << 16);
+              break;
+
+            case 3:
+              if (inst.aif.M2SEL == 0)
+                BOP = (((int)DSP.flags.MULT1 * (((int32_t)Y >> 15)) & ~1) & ALUSIZEMASK);
+              else
+                BOP = (((int)DSP.flags.MULT1 * (int)DSP.flags.MULT2 * 2) & ALUSIZEMASK);
+              break;
+          }
+        }
+
+        flags.carry = 0;
+        flags.overflow = 0;
+
+        switch (inst.aif.ALU)
+        {
+          case 0:  Y = AOP; break;
+          case 1:  Y = (0 - BOP); break;
+          case 2:
+          case 3:  Y = (AOP + BOP); break;
+          case 4:
+          case 5:  Y = (AOP - BOP); break;
+          case 6:  Y = (AOP + 0x1000); break;
+          case 7:  Y = (AOP - 0x1000); break;
+          case 8:  Y = AOP; break;
+          case 9:  Y = (AOP ^ ALUSIZEMASK); break;
+          case 10: Y = (AOP & BOP); break;
+          case 11: Y = ((AOP & BOP) ^ ALUSIZEMASK); break;
+          case 12: Y = (AOP | BOP); break;
+          case 13: Y = ((AOP | BOP) ^ ALUSIZEMASK); break;
+          case 14: Y = (AOP ^ BOP); break;
+          case 15: Y = (AOP ^ BOP ^ ALUSIZEMASK); break;
+        }
+
+        flags.zero     = ((Y & 0xFFFF0000) ? 0 : 1);
+        flags.negative = ((Y >> 31) ? 1 : 0);
+        fExact         = ((Y & 0x0000F000) ? 0 : 1);
+
+        if (DSP.flags.BS)
+          Y <<= 1;
+
+        if (DSP.flags.WRITEBACK)
+          DSP.IMem[DSP.flags.WRITEBACK] = Y >> 16;
+      }
     }
+
+    if (DSP.flags.GenFIQ & 1)
+    {
+      DSP.flags.GenFIQ = false;
+    }
+
+    DSP.dregs.DSPPCNT -= SYSTEM_TICKS;
+
+    if (DSP.dregs.DSPPCNT <= 0)
+      DSP.dregs.DSPPCNT += DSP.dregs.DSPPRLD;
+  }
 
   return ((DSP.IMem[0x3FF] << 16) | DSP.IMem[0x3FE]);
 }
