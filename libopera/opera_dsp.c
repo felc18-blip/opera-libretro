@@ -840,8 +840,8 @@ opera_dsp_loop(void)
 
   if (DSP.flags.Running)
   {
-    uint32_t AOP  = 0;      /* 1st operand */
-    uint32_t RBSR = 0;      /* return address */
+    uint32_t AOP  = 0;
+    uint32_t RBSR = 0;
     int      fExact = 0;
     bool     work   = true;
 
@@ -854,78 +854,49 @@ opera_dsp_loop(void)
     while (work)
     {
       ITAG_t inst;
-
       inst.raw = DSP.NMem[DSP.dregs.PC++];
 
       if (inst.aif.PAD)
-      { /* Control instruction */
+      {
         switch ((inst.raw >> 7) & 0xFF)
         {
-          case 0: /* NOP */
+          case 0:
             break;
 
-          case 1: /* branch accum */
+          case 1:
             DSP.dregs.PC = ((Y >> 16) & 0x3FF);
             break;
 
-          case 2: /* set rbase */
+          case 2:
             DSP.RBASEx4 = ((inst.cif.BCH_ADDR & 0x3F) << 2);
             break;
 
-          case 3: /* set rmap */
+          case 3:
             DSP.REGi = (inst.cif.BCH_ADDR & 7);
             break;
 
-          case 4: /* RTS */
+          case 4:
             DSP.dregs.PC = RBSR;
             break;
 
-          case 5: /* set op_mask */
+          case 5:
             DSP.flags.nOP_MASK = ~(inst.cif.BCH_ADDR & 0x1F);
             break;
 
-          case 6:
-            break;
-
-          case 7: /* sleep */
+          case 7:
             work = false;
             break;
 
-          case 8:
-          case 9:
-          case 10:
-          case 11:
-          case 12:
-          case 13:
-          case 14:
-          case 15: /* jump */
+          case 8 ... 15:
             DSP.dregs.PC = inst.cif.BCH_ADDR;
             break;
 
-          case 16:
-          case 17:
-          case 18:
-          case 19:
-          case 20:
-          case 21:
-          case 22:
-          case 23: /* jsr */
+          case 16 ... 23:
             RBSR = DSP.dregs.PC;
             DSP.dregs.PC = inst.cif.BCH_ADDR;
             break;
 
-          case 24:
-          case 25:
-          case 26:
-          case 27:
-          case 28:
-          case 29:
-          case 30:
-          case 31:
-            DSP.dregs.PC = inst.cif.BCH_ADDR;
-            break;
-
-          case 32 ... 47: /* MOVEREG */
+          case 32 ... 47:
           {
             uint16_t op;
             uint16_t addr;
@@ -940,7 +911,7 @@ opera_dsp_loop(void)
           }
           break;
 
-          case 48 ... 63: /* move */
+          case 48 ... 63:
           {
             uint16_t op;
             uint16_t addr;
@@ -955,7 +926,7 @@ opera_dsp_loop(void)
           }
           break;
 
-          default: /* condition branch */
+          default:
             if (DSP.BRCONDTAB[inst.br.bits][fExact + ((flags.raw * 0x10080402) >> 24)] & 1)
               DSP.dregs.PC = inst.cif.BCH_ADDR;
             break;
@@ -963,8 +934,6 @@ opera_dsp_loop(void)
       }
       else
       {
-        /* ALU instruction */
-
         DSP.flags.req.raw = DSP.INSTTRAS[inst.raw].req.raw;
         DSP.flags.BS      = DSP.INSTTRAS[inst.raw].BS;
 
@@ -1064,9 +1033,7 @@ opera_dsp_loop(void)
     }
 
     if (DSP.flags.GenFIQ & 1)
-    {
       DSP.flags.GenFIQ = false;
-    }
 
     DSP.dregs.DSPPCNT -= SYSTEM_TICKS;
 
