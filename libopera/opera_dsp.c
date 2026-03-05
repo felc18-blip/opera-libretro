@@ -1102,17 +1102,19 @@ opera_dsp_loop(void)
               flags.zero     = ((Y & 0xFFFF0000) ? 0 : 1);
               flags.negative = ((Y >> 31) ? 1 : 0);
               fExact         = ((Y & 0x0000F000) ? 0 : 1);
-              
+
               if (DSP.flags.BS)
-              Y <<= 1;
-              
+                Y <<= 1;
+
               if (DSP.flags.WRITEBACK)
               {
-                  DSP.IMem[DSP.flags.WRITEBACK] = Y >> 16;
+                DSP.IMem[DSP.flags.WRITEBACK] = Y >> 16;
               }
 
-        } while(work);
+            }   /* fecha o bloco do else */
 
+        }       /* fecha o do */
+        while (work);
 
       if(1 & DSP.flags.GenFIQ)
         {
