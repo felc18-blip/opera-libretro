@@ -843,16 +843,16 @@ opera_dsp_loop(void)
       uint32_t AOP    = 0;      /* 1st operand */
       uint32_t RBSR   = 0;	/* return address */
       int      fExact = 0;
-      bool     work   = true;
+bool work = true;
 
-      opera_dsp_reset();
+opera_dsp_reset();
 
-      Y   = 0;
-      BOP = 0;
-      flags.raw = 0;
+Y = 0;
+BOP = 0;
+flags.raw = 0;
 
-      do
-        {
+while (work)
+{
           ITAG_t inst;
 
           inst.raw = DSP.NMem[DSP.dregs.PC++];
@@ -1114,7 +1114,6 @@ opera_dsp_loop(void)
             }   /* fecha o bloco do else */
 
         }       /* fecha o do */
-        while (work);
 
       if(1 & DSP.flags.GenFIQ)
         {
