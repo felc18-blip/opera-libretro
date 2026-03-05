@@ -1105,7 +1105,7 @@ opera_dsp_loop(void)
               
               if (DSP.flags.BS)
               Y <<= 1;
-              }
+              
               if(DSP.flags.WRITEBACK)
                 DSP.IMem[DSP.flags.WRITEBACK] = Y >> 16;
             }
